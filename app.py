@@ -1,4 +1,4 @@
-# VERSAO_FINAL_SOCIAL_PRODUCAO_V1
+# VERSAO_FINAL_SOCIAL_PRODUCAO_V1.1_CORRIGIDA
 import streamlit as st
 import pandas as pd
 import requests
@@ -141,7 +141,7 @@ if aba_ativa == "📋 Extração de Dados":
         "Programas Complementares (Gás / PAA)"
     ])
     
-    ano_sel = st.sidebar.selectbox("Ano de Referência:", list(range(2024, 2012, -1)))
+    ano_sel = st.sidebar.selectbox("Ano de Referência:", list(range(2026, 2012, -1)))
     
     # Censo SUAS é anual, removemos o mês se for selecionado
     if sistema == "Estrutura da Assistência Social (Censo SUAS)":
@@ -160,7 +160,14 @@ if aba_ativa == "📋 Extração de Dados":
                 df_resultado = extrair_dados_sociais(sistema, uf_sel, municipio_sel, ano_sel, mes_sel)
                 
                 if not df_resultado.empty:
-                    st.markdown(f'<div class="metric-card"><h2>{sistema}</h2><p>Território: {nome_local} | Competência: {mes_sel:02d}/{ano_sel} se aplicável</p></div>', unsafe_allow_html=True)
+                    # Formata o texto de competência dinamicamente (Ano/Mês ou só Ano)
+                    if mes_sel is not None:
+                        texto_competencia = f"{mes_sel:02d}/{ano_sel}"
+                    else:
+                        texto_competencia = f"{ano_sel} (Consolidado Anual)"
+
+                    # Desenha o card principal com o texto corrigido
+                    st.markdown(f'<div class="metric-card"><h2>{sistema}</h2><p>Território: {nome_local} | Competência: {texto_competencia}</p></div>', unsafe_allow_html=True)
                     
                     tab1, tab2 = st.tabs(["📈 Painel Analítico", "✅ Base de Dados (Tabela)"])
                     
