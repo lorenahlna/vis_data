@@ -1,3 +1,6 @@
 streamlit
 pandas
 requests
+duckdb
+beautifulsoup4
+lxml
