@@ -1,4 +1,4 @@
-# VERSAO_FINAL_SOCIAL_PRODUCAO_V3
+# VERSAO_FINAL_SOCIAL_PRODUCAO_V4_CHAVES_API_CORRIGIDAS
 import streamlit as st
 import pandas as pd
 import requests
@@ -49,7 +49,7 @@ def buscar_municipios_por_uf(uf_sigla):
     except:
         return {"Belo Horizonte": {"id_ibge": "3106200", "nome": "Belo Horizonte", "uf": "MG"}}
 
-# --- MOTOR DE EXTRAÇÃO DE DADOS SOCIAIS (API REAL CORRIGIDA) ---
+# --- MOTOR DE EXTRAÇÃO DE DADOS SOCIAIS (API REAL) ---
 def extrair_dados_sociais(sistema, uf, municipio, ano, mes):
     local = municipio if municipio else uf
     
@@ -68,17 +68,13 @@ def extrair_dados_sociais(sistema, uf, municipio, ano, mes):
             id_ibge = muns_estado[municipio]['id_ibge']
             
     headers = {"chave-api-dados": api_token}
-    
-    # Formata Competência para a API (Ex: Janeiro de 2024 vira "202401")
     ano_mes_competencia = f"{ano}{mes:02d}" if mes else f"{ano}"
-
     data = []
 
     # ---------------------------------------------------------
-    # DADOS REAIS: PORTAL DA TRANSPARÊNCIA (Bolsa Família, BPC, Gás)
+    # DADOS REAIS: PORTAL DA TRANSPARÊNCIA
     # ---------------------------------------------------------
     if sistema == "Programa Bolsa Família (PBF)" and id_ibge:
-        # Rota atualizada para o "Novo Bolsa Família" com paginação obrigatória
         url = f"https://api.portaldatransparencia.gov.br/api-de-dados/novo-bolsa-familia-por-municipio?codigoIbge={id_ibge}&mesAno={ano_mes_competencia}&pagina=1"
         try:
             res = requests.get(url, headers=headers, timeout=15)
@@ -86,7 +82,12 @@ def extrair_dados_sociais(sistema, uf, municipio, ano, mes):
                 res_json = res.json()
                 if len(res_json) > 0:
                     dados_api = res_json[0]
-                    qtd_familias = dados_api.get('quantidadeBeneficiarios', 0)
+                    
+                    # 🚀 CORREÇÃO: Fallback Inteligente para a Nomenclatura da CGU
+                    qtd_familias = dados_api.get('quantidadeBeneficiados', 
+                                   dados_api.get('quantidadeBeneficiarios', 
+                                   dados_api.get('quantidade', 0)))
+                                   
                     valor_pago = dados_api.get('valor', 0.0)
                     
                     data = [{
@@ -112,7 +113,11 @@ def extrair_dados_sociais(sistema, uf, municipio, ano, mes):
                 res_json = res.json()
                 if len(res_json) > 0:
                     dados_api = res_json[0]
-                    qtd_beneficios = dados_api.get('quantidadeBeneficiarios', 0)
+                    
+                    # Fallback Inteligente CGU
+                    qtd_beneficios = dados_api.get('quantidadeBeneficiados', 
+                                     dados_api.get('quantidadeBeneficiarios', 
+                                     dados_api.get('quantidade', 0)))
                     
                     data = [{
                         "TERRITÓRIO": local, "ANO": ano, "MÊS": mes,
@@ -136,9 +141,14 @@ def extrair_dados_sociais(sistema, uf, municipio, ano, mes):
                 res_json = res.json()
                 if len(res_json) > 0:
                     dados_api = res_json[0]
+                    
+                    qtd_gas = dados_api.get('quantidadeBeneficiados', 
+                              dados_api.get('quantidadeBeneficiarios', 
+                              dados_api.get('quantidade', 0)))
+
                     data = [{
                         "TERRITÓRIO": local, "ANO": ano, "MÊS": mes,
-                        "AUXÍLIO_GÁS_FAMÍLIAS": dados_api.get('quantidadeBeneficiarios', 0),
+                        "AUXÍLIO_GÁS_FAMÍLIAS": qtd_gas,
                         "AUXÍLIO_GÁS_VALOR": dados_api.get('valor', 0.0),
                         "PAA_AGRICULTORES_FORNECEDORES": "Sem dados financeiros",
                         "PAA_VALOR_INVESTIDO": "Sem dados financeiros"
@@ -150,7 +160,7 @@ def extrair_dados_sociais(sistema, uf, municipio, ano, mes):
             pass
 
     # ---------------------------------------------------------
-    # DADOS ESTRUTURAIS/MOCKADOS (Bases que não estão na Transparência)
+    # DADOS ESTRUTURAIS/MOCKADOS
     # ---------------------------------------------------------
     time.sleep(0.5)
     if sistema == "Cadastro Único (CadÚnico)":
@@ -208,15 +218,12 @@ if aba_ativa == "📋 Extração de Dados":
         "Estrutura da Assistência Social (Censo SUAS)"
     ])
     
-    # Anos recentes costumam ter mais estabilidade na API da Transparência
     ano_sel = st.sidebar.selectbox("Ano de Referência:", list(range(2026, 2012, -1)))
     
-    # Censo SUAS é anual, removemos o mês se for selecionado
     if sistema == "Estrutura da Assistência Social (Censo SUAS)":
         st.sidebar.info("O Censo SUAS possui consolidação anual. Filtro de mês desabilitado.")
         mes_sel = None
     else:
-        # Default para o mês anterior ao atual para garantir que a base já foi fechada
         mes_padrao = datetime.now().month - 1 if datetime.now().month > 1 else 12
         nome_mes = st.sidebar.selectbox("Mês de Competência:", MESES_NOMES, index=mes_padrao - 1)
         mes_sel = int(nome_mes.split(" - ")[0])
@@ -233,7 +240,6 @@ if aba_ativa == "📋 Extração de Dados":
                     df_resultado = extrair_dados_sociais(sistema, uf_sel, municipio_sel, ano_sel, mes_sel)
                     
                     if not df_resultado.empty:
-                        # Formata o texto de competência dinamicamente (Ano/Mês ou só Ano)
                         if mes_sel is not None:
                             texto_competencia = f"{mes_sel:02d}/{ano_sel}"
                         else:
@@ -244,7 +250,6 @@ if aba_ativa == "📋 Extração de Dados":
                         tab1, tab2 = st.tabs(["📈 Painel Analítico", "✅ Base de Dados (Tabela)"])
                         
                         with tab1:
-                            # --- DASHBOARDS ESPECÍFICOS POR SISTEMA ---
                             if sistema == "Cadastro Único (CadÚnico)":
                                 st.info("ℹ️ Dados estruturais exibidos são demonstrativos. A conexão será implementada via base agregada do MDS.")
                                 c1, c2, c3 = st.columns(3)
